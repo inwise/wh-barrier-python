@@ -1,10 +1,9 @@
 from math import log, sqrt
 
 from numpy import exp, fft, array, pi, zeros
-from scripts.simple_logging_funcs import tree_to_csv_file, array_to_csv_file
-from scripts.useful_functions import G, indicator
 import matplotlib.pyplot as plt
 
+from scripts.useful_functions import G, indicator
 from scripts.volatility_tree import build_volatility_tree, tree_to_csv_file
 i = complex(0, 1)
 
@@ -26,8 +25,9 @@ if __name__ == '__main__':
 
     # method parameters
     N = 100  # number_of_time_steps
-    M = 2**9  # number of points in price grid
+    M = 2**6  # number of points in price grid
     L = 3  # scaling coefficient
+
 
 
 
@@ -60,11 +60,11 @@ def evaluate_option_by_wh(T, H_original, K_original, r_premia, V0, kappa, theta,
     f_up = markov_chain[3]
     f_down = markov_chain[4]
 
-    tree_to_csv_file(V, "../output/routine/variance_tree.csv")
-    tree_to_csv_file(pu_f, "../output/routine/up_jumps_probabilities_on_variance_tree.csv")
-    tree_to_csv_file(pd_f, "../output/routine/down_jumps_probabilities_on_variance_tree.csv")
-    tree_to_csv_file(f_up, "../output/routine/ku.csv")
-    tree_to_csv_file(f_down, "../output/routine/kd.csv")
+    # tree_to_csv_file(V, "../output/routine/variance_tree.csv")
+    # tree_to_csv_file(pu_f, "../output/routine/up_jumps_probabilities_on_variance_tree.csv")
+    # tree_to_csv_file(pd_f, "../output/routine/down_jumps_probabilities_on_variance_tree.csv")
+    # tree_to_csv_file(f_up, "../output/routine/ku.csv")
+    # tree_to_csv_file(f_down, "../output/routine/kd.csv")
 
     # we're now working on volatility tree scope.
     # here we are going to construct a substitution for S - original prices array
@@ -72,31 +72,16 @@ def evaluate_option_by_wh(T, H_original, K_original, r_premia, V0, kappa, theta,
 
     # y_j (n,k) = x_space_j - rho/sigma * V (n,k)
 
-    # as soon as we cannot properly print out the 3-d array, we store the info on whole time-vol-space system
-    # as a collection of files
-    # y = ln(S/H) - (rho / sigma)* V
-    # y[j][n][k] - initial state of prices process after substitutions performed taking V[n,k] structure into account
-    y = zeros((len(x_space), len(V), len(V[N])))
-    for j in range(len(x_space)):
-        for n in range(len(V)):
-            for k in range(len(V[N])):
-                y[j][n][k] = x_space[j] - rho/sigma * V[n, k]
-    #for j in range(len(y)):
-    #    tree_to_csv_file(y[j], "../output/routine/price_voltree_slices/slice" + str(j) + ".csv")
-    print("y_j_n_k consctuction completed")
-
-#    print("total price tree construction started")
-
     xi_space = fft.fftfreq(M, d=d)
     rho_hat = sqrt(1 - rho**2)
     q = 1.0/delta_t + r
     factor = (q*delta_t)**(-1)
     # initially F stores only payout function, to be later filled with computational results for conditional expectation
     # on the markov chain vertices. F[0,0] should store the final answer
-    F = zeros((len(y), len(V), len(V[N])), dtype=complex)
-    for j in range(len(y)):
-        for k in range(len(V[N])):
-            F[j, N, k] = G(H_original * exp(y[j][N][k] + rho / sigma * V[N, k]), K_original)
+    F = zeros((M, N+1, N+1), dtype=complex)
+    for j in range(M):
+        for k in range(N):
+            F[j, N, k] = G(original_prices_array[j], K_original)
 
     # the global cycle starts here. It iterates over the volatility tree we just constructed, and goes backwards in time
     # starting from n-1 position
@@ -106,8 +91,8 @@ def evaluate_option_by_wh(T, H_original, K_original, r_premia, V0, kappa, theta,
     treshold = 1e-6
     discount_factor = exp(r*delta_t)
 
-    for n in range(len(V[N]) - 2, -1, -1):
-        print(str(n) + "of" + str(len(V[N]) - 2))
+    for n in range(N-1, -1, -1):
+        print(str(n) + "of" + str(N - 2))
         for k in range(n+1):
             # to calculate the binomial expectation one should use Antonino's matrices f_up and f_down
             # the meaning of the containing integers are as follows - after (n,k) you will be in
@@ -120,12 +105,11 @@ def evaluate_option_by_wh(T, H_original, K_original, r_premia, V0, kappa, theta,
             f_n_plus_1_k_d = array([F[j][n + 1][k_d] for j in range(len(F))])
 
             H_N_k = - (rho / sigma) * V[n, k]  # modified barrier
-            local_domain = array([y[j][n][k] for j in range(len(y))])
 
             if V[n, k] >= treshold:
                 # set up variance-dependent parameters for a given step
                 sigma_local = rho_hat * sqrt(V[n, k])
-                gamma = r - 0.5 * V[n, k] - rho/sigma * kappa * (theta - V[n, k]) # also local
+                gamma = r - 0.5 * V[n, k] - rho/sigma * kappa * (theta - V[n, k])  # also local
 
                 # beta_plus and beta_minus
                 beta_minus = - (gamma + sqrt(gamma**2 + 2*sigma_local**2 * q))/sigma_local**2
@@ -139,43 +123,35 @@ def evaluate_option_by_wh(T, H_original, K_original, r_premia, V0, kappa, theta,
                 f_n_k_u = factor * \
                           fft.ifft(phi_minus_array *
                                             fft.fft(
-                                                indicator(
-                                                    fft.ifft(phi_plus_array * fft.fft(f_n_plus_1_k_u)),
-                                                    local_domain, H_N_k)))
+                                                indicator(original_prices_array, 0) *
+                                                    fft.ifft(phi_plus_array * fft.fft(f_n_plus_1_k_u)))),
 
                 f_n_k_d = factor * \
                           fft.ifft(phi_minus_array *
                                             fft.fft(
-                                                indicator(
-                                                    fft.ifft(phi_plus_array * fft.fft(f_n_plus_1_k_d)),
-                                                    local_domain, H_N_k)))
+                                                indicator(original_prices_array, 0) *
+                                                    fft.ifft(phi_plus_array * fft.fft(f_n_plus_1_k_d)))),
             elif V[n, k] < treshold:
-                f_n_plus_1_k_u = [F[j][n+1][k_u] for j in range(len(F))]
+                f_n_plus_1_k_u = array([F[j][n+1][k_u] for j in range(len(F))])
                 f_n_k_u = discount_factor * f_n_plus_1_k_u
 
-                f_n_plus_1_k_d = [F[j][n + 1][k_d] for j in range(len(F))]
+                f_n_plus_1_k_d = array([F[j][n + 1][k_d] for j in range(len(F))])
                 f_n_k_d = discount_factor * f_n_plus_1_k_d
 
-            f_n_k = f_n_k_u * pu_f[n, k] + f_n_k_d * pd_f[n, k]
+            f_n_k = pd_f[n, k] * f_n_k_d + pu_f[n, k] * f_n_k_u
 
-            for j in range(len(f_n_k)):
+            for j in range(M):
                 # here we try some cutdown magic. The procedure without it returns great bubbles to the right
                 # from the strike. And the more L the greater this bubble grows.
                 # what we are going to do there is to try to cut off all the values on prices greater than, say,
                 # 4 times bigger then the strike
                 # we use S>4K and, therefore, y > ln(4K/H) + (pho/sigma)*V inequality to do this
-                if y[j][n][k] < log(3*K_original/H_original + (rho/sigma) * V[n][k]):
+                if original_prices_array[j] > 4 * K_original:
                     F[j][n][k] = f_n_k[j]
                 else:
                     F[j][n][k] = complex(0)
-
-
-
-    # for j in range(len(y)):
-    #    tree_to_csv_file(y[j], "../output/routine/price_slices/Y" + str(original_prices_array[j]) + ".csv")
-
-    # for j in range(len(F)):
-    #    tree_to_csv_file(F[j], "../output/routine/answers/F" + str(original_prices_array[j]) + ".csv")
+                if len(f_n_k) < 63:
+                    print("here it is")
 
     answer_total = open("../output/routine/answer_cumul.csv", "w")
 
@@ -189,7 +165,7 @@ def evaluate_option_by_wh(T, H_original, K_original, r_premia, V0, kappa, theta,
     #    tree_to_csv_file(F[j], "../output/routine/answers/F" + str(original_prices_array[j]) + ".csv")
     plt.plot(original_prices_array, answers_list)
     plt.savefig("../output/figure.png")
-#    plt.show()
+    plt.show()
     plt.close()
 
 if __name__ == "__main__":
