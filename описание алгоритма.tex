@@ -1,0 +1,189 @@
+\documentclass[draft, 12pt]{article}
+\usepackage[cp1251]{inputenc} % следующие две строки используются для
+\usepackage[english,russian]{babel}   % руссификации AmSLaTeX
+\usepackage{amsmath,amsfonts,amssymb,euscript,graphicx,wrapfig,multirow}
+\usepackage{dsfont}
+\textheight=240mm \textwidth=170mm
+\hoffset=-17mm % сдвиг влево
+\voffset=-17mm % сдвиг вверх
+
+\begin{document}
+
+\begin{center}
+\textbf{О численном методе решения семейства интегро-дифференциальных уравнений с переменными коэффициентами, возникающих в финансовой математике} \\[3mm]
+\textbf{О.~Е.~Кудрявцев}\\[2mm]
+\emph{Ростовский филиал Российской таможенной академии}
+
+\textbf{В.~В.~Родоченко}\\[2mm]
+\emph{Южный Федеральный Университет}
+\end{center}
+
+\section{Аннотация}
+Здесь представлен алгоритм вычисления и небольшое введение, позволяющее понять контекст и отладить основные шаги
+
+\section{Предварительные соображения}
+Система. Описывает поведение актива $S_t$. Процесс вариации $V_t$, подчиняется процессу CIR. 
+\begin{equation}
+\begin{array}{l}
+dS_t = (r-\lambda_J \zeta)S_t dt+\sqrt{V_t} S_t dZ^S_t+(J-1) S_t dN_t,
+\smallskip\\
+dV_t= \kappa_V(\theta_V-V_t)dt+\sigma_V\sqrt{V_t}dZ^V_t,
+\smallskip\\
+<dZ^S_t,dZ^V_t> = \rho dt,
+\smallskip\\
+\end{array}
+\end{equation}
+где $r$ -- неотрицательный параметр, $Z^S_t$ и $Z^V_t$ - винеровские процессы, связанные коэффициентом корреляции $\rho$. В скачковой части, $N_t$ представляет из себя пуассоновский процесс с интенсивностью $\lambda_J$, считающий к моменту $t$ количество одинаково распределенных скачков размера $J$. Процесс $N_t$ не зависит от процессов $Z^S_t$ и $Z^V_t$, а также независим от $J$.  Параметр $\kappa_V$ определяет скорость ``возврата'' процесса вариации к ``долговременному'' среднему значению $\theta_V$, $\sigma_V>0$ называется ``волатильностью'' вариации. Соотношение между  $\zeta$ и параметрами распределения $J$ подбирается из соображения мартингальности процесса $\exp(-rt)S_t$. 
+
+Величина скачков $J$ имеет логнормальное распределение $J\sim \mbox{LogN}(\mu_J, \sigma_J^2)$, тогда $\zeta = e^{\mu_J + \frac{1}{2}\sigma_J^2} - 1$
+
+Математическое ожидание:
+\begin{equation}
+f(S,V,t) = M[e^{-r(T-t)}  {\bf 1}_{\underline{S}_T>H} G(S_T) | S_t = S, V_t = V],
+\end{equation}
+$H$ -- поглощающий барьер, $\underline{S}_T (= \inf_{0\le t\le T}S_T)$ -- процесс инфимума процесса $S_t$. 
+
+Функция выплат (put)):
+$G(S)=\max\{0, K - S\}$
+
+Пусть $\tau = T-t$, тогда $F(S,V,\tau)\left(=f(S,V, T-\tau)\right)$ удовлетворяет следующему интегро-дифференциальному уравнению в частных производных с переменными коэффициентами в области $S(\tau) > H$.
+\begin{eqnarray*}
+		\frac{\partial F(S,V,\tau)}{\partial \tau} &= &
+		\frac{1}{2} VS^2 \frac{\partial^2 F(S,V,\tau)}{\partial S^2} +
+		\rho\sigma_V VS \frac{\partial^2 F(S,V,\tau)}{\partial S \partial V} +
+		\\
+		\frac{1}{2} \sigma_V^2 V \frac{\partial^2 F(S,V,\tau)}{\partial V^2} &+&
+		(r - \lambda_J \zeta) S \frac{\partial F(S,V,\tau)}{\partial S} +
+		\kappa_V(\theta_V - V) \frac{\partial F(S,V,\tau)}{\partial V} - 
+		\\
+		(r+\lambda_J)F(S,V,\tau) &+&
+		\lambda_J \int_0^\infty F(JS,V,\tau) f(J) dJ,
+		\\
+		F(S,V,0) &=& G(S),
+\end{eqnarray*}
+где $f(J)$ -- функция плотности вероятностей величины скачков $J$. $F(S,V,\tau) = 0,  S(\tau) \le H$.
+
+\section{Замена процесса}
+
+Обозначим $\hat{\rho} = \sqrt{1-\rho^2}$, $W = Z^V$, $\rho W + \hat{\rho}Z = Z^S$, где $W_t$ $Z_t$ -- независимые броуновские движения. 
+
+Введём замену для процесса $S_t$, положив $Y_t = \ln(\frac{S_t}{H}) - \frac{\rho}{\sigma_V}V_t$. При этом $S_t = H\exp(Y_t + \frac{\rho}{\sigma_V}V_t) $  Тогда:
+
+\begin{equation*}
+\begin{array}{l}
+d Y_t = (r-\frac{1}{2}V_t - \frac{\rho}{\sigma_V}\kappa_V(\theta_V - V_t) - \lambda_J \zeta)dt+\hat{\rho}\sqrt{V_t} dZ_t+\ln JdN_t,
+\smallskip\\
+dV_t= \kappa_V(\theta_V-V_t)dt+\sigma_V\sqrt{V_t}dW_t.
+\smallskip\\
+\end{array}
+\end{equation*}
+
+Для дальнейшего описания алгоритма введём обозначения:
+
+\begin{equation*}
+\begin{array}{l}
+\mu_Y(V_t) = r - \frac{1}{2}V_t - \frac{\rho}{\sigma_V}\kappa_V(\theta_V - V_t)  - \lambda_J \zeta,
+\smallskip\\
+\mu_V(V_t) = \kappa_V(\theta_V - V_t).
+\smallskip\\
+\end{array}
+\end{equation*}
+
+\section{Рандомизация Карра}
+Для того, чтобы иметь возможность свести рассматриваемую задачу к задаче на малых интервалах времени, мы используем процедуру, известную как ``рандомизация Карра'', впервые введённую в статье [19] и обобщённую на общий случай задач стохастического управления в статье [20]. Обозначим $F_{n}({Y}_{t_n}, {V}_{t_n}) = F_{n}(H\exp(Y_t + \frac{\rho}{\sigma_V}V_t), {V}_{t_n}, t_n)$ -- приближение Карра значения функции $F(S,V,\tau)$ в момент времени $t_n$, где $t_i = i \Delta \tau$ и $\Delta \tau = \frac{T}{N}$. Пусть $\{\tau_i\}_{i=1}^N$ –- набор независимых экспоненциально распределённых случайных величин со средним $\Delta \tau$. Обозначим $Z_\tau^n=Y_{t_n + \tau}+\frac{\rho}{\sigma_V}V_{t_n + \tau}$.
+
+Полагая $F_{N}(Y_T, V_T)=G(H\exp (Y_T+\frac{\rho}{\sigma_V}V_T ))$, получаем возможность записать:
+
+$$
+F_{n}({Y}_{t_n}, {V}_{t_n}) = M_{t_{n}} [ e^{-r\Delta \tau}  
+I_{\underline{Z}^n_{\tau_n} > 0} F_{n+1}(Y_{t_n+\tau_n},V_{t_n+\tau_n})], \smallskip\\ n = N-1,..,0 
+$$
+
+\section{Аппроксимация}
+
+Построим  биномиальное дерево со ``склеенными'' вершинами, определяемыми по формуле:
+\begin{equation*}	
+V(n,k) = (\sqrt{V_0} + \frac{\sigma_V}{2}(2k-n)\sqrt{\Delta \tau})^2 \mathds{1}_{(\sqrt{V_0} + \frac{\sigma_V}{2}(2k-n)\sqrt{\Delta \tau}) > 0}, 
+\\ n = 0,1,...,N, \; k = 0,1,...,n.
+\end{equation*}
+
+Идея приближения состоит в том, что в каждый момент времени $t_n$ вариация может находиться в одном из состояний $V(n,k)$. В момент $t_{n+1}$ из вершины $(n,k)$ мы можем попасть либо ``вверх'' -- в вершину $(n+1,k_u)$, либо ``вниз'' -- в вершину $(n+1,k_d)$, при этом $k_u$ и $k_d$ подбираются так, чтобы согласовать движение по дереву со сносом $\mu(V_{(n,k)})$, по следующим правилам:
+\begin{eqnarray*}
+	k_u^{\Delta \tau}(n,k) = min\{{k^\ast} : k + 1 \le k^\ast \le n + 1, V(n,k) + \mu_{V}(V(n,k)){\Delta \tau} \le V(n+1,k^\ast)\} \\
+	k_d^{\Delta \tau}(n,k) = max\{{k^\ast} : 0 \le k^\ast \le k, V(n,k) + \mu_{V}(V(n,k)) \ge V(n+1,k^\ast)\}
+\end{eqnarray*}
+
+Определим вероятности переходов как:
+
+$$
+p^{\Delta \tau}_{k^{\Delta \tau}_{u}(n,k)} = 
+\frac{\mu_{V}(V(n,k))\Delta \tau+V(n,k)-V(n+1,k^{\Delta \tau}_{d}(n,k))}{V(n+1,k^{\Delta \tau}_{u}(n,k))-V(n+1,k^{\Delta \tau}_{d}(n,k))}
+$$
+
+Чтобы обеспечить корректную работу схемы в случае различных значений параметров, необходимо ввести дополнительные правила, предотвращающие появление отрицательных вероятностей в некоторых вершинах:
+\begin{equation*}
+p^{\Delta \tau}_{k^{\Delta \tau}_{u}(n,k)} :=
+\begin{cases}
+1, & p^{\Delta \tau}_{k^{\Delta \tau}_{u}(n,k)} > 1\\
+p^{\Delta \tau}_{k^{\Delta \tau}_{u}(n,k)}, & p^{\Delta \tau}_{k^{\Delta \tau}_{u}(n,k)} \in [0, 1]\\
+0, & p^{\Delta \tau}_{k^{\Delta \tau}_{u}(n,k)} < 0
+\end{cases}
+, \;\;\;\; p^{\Delta \tau}_{k^{\Delta \tau}_{d}(n,k)} := 1 - p^{\Delta \tau}_{k^{\Delta \tau}_{u}(n,k)},
+\end{equation*}
+
+\section{Приближённая факторизация}
+
+Зафиксировав таким образом вариацию в каждом из узлов, мы имеем возможность рассматривать семейство задач с интегро-дифференциальным оператором следующего вида:
+
+$$L_{n,k}f(y) := L_{Y}^{V(n,k)}f(y) = \frac{1}{2\pi}\int^\infty_{-\infty}e^{iy\xi}\psi_{n,k}(\xi)\hat{f}(\xi)d\xi.$$
+
+Этот оператор можно понимать как псевдодифференциальный оператор, символом которого является $\psi_{n,k}(\xi)$ -- характеристическая экспонента процесса $Y_t$ при $V_t = V(n,k)$:
+
+\begin{equation*}
+	\psi_{n,k}(\xi) = \hat{\rho}^2\frac{V(n,k)}{2}\xi^2 - i\mu_Y(V(n,k))\xi + \phi(\xi),
+\end{equation*}
+где $\phi(\xi)$ -- характеристическая экспонента обобщённого пуассоновского процесса. Например, для модели Мертона она имеет вид: $\phi(\xi) = \lambda_J(1-e^{\frac{\sigma_J^2}{2} + \mu_J})$
+
+Для каждого из узлов $(n,k), n=N-1,...0$ возникает две задачи -- одна в предположении, что переход был совершён в вершину $(n+1,k_d)$, другая -- в предположении, что переход был совершён в вершину $(n+1,k_u)$. Решение каждой из этих задач может быть записано в терминах операторов $\varepsilon^{+}_{q}$ и $\varepsilon^{-}_{q}$ -- факторов Винера-Хопфа (см статью [14]):
+
+\begin{eqnarray*}
+f_{n}^{k_{d}}(y) = (q{\Delta \tau})^{-1} \; \varepsilon^{-}_{q} \mathds{1}_{(- \frac{\rho}{\sigma_V}V(n,k), +\infty)}(y) \; \varepsilon^{+}_{q} f_{n+1}^{k_d}(y);\\
+f_{n}^{k_{u}}(y) = (q{\Delta \tau})^{-1} \; \varepsilon^{-}_{q} \mathds{1}_{(- \frac{\rho}{\sigma_V}V(n,k), +\infty)}(y) \; \varepsilon^{+}_{q} f_{n+1}^{k_u}(y),
+\end{eqnarray*}
+
+Далее последовательно вычисляя $f_n^k = p_{k_d^{\Delta \tau}(n,k)} f_n^{k_d}(y) + p_{k_u^{\Delta \tau}(n,k)} f_n^{k_u}(y)$ для $n=N-1,..,0, k = 0,...,n,$
+где $f_n^k = F(He^{y+\frac{\rho}{\sigma_V}V(n,k)}, V(n,k), n\Delta \tau)$, мы, после возвращения к исходным обозначениям, получаем приближённые значения искомого функционала (2). В отличие от более простого случая модели Хестона [21], наличие скачков лишает возможности использовать явные формулы для факторов -- их получить не удаётся. Аналитические формулы для факторов имеют вид:
+
+\begin{eqnarray*}
+	\phi^+_q(\xi)&=&\exp\left[(2\pi i)^{-1}
+	\int_{-\infty+i\omega_-}^{+\infty+i\omega_-}\frac{\xi\ln(q+\psi(\eta))}
+	{\eta(\xi-\eta)}d\eta\right];\\
+	\phi^-_q(\xi)&=&\exp\left[-(2\pi i)^{-1}
+	\int_{-\infty+i\omega_+}^{+\infty+i\omega_+}\frac{\xi\ln(q+\psi(\eta))}
+	{\eta(\xi-\eta)}d\eta\right],
+\end{eqnarray*}
+
+Константы $\omega_+$ и $\omega_-$, такие, что $\omega_-<0<\omega_+$, имеют здесь смысл параметров и подбираются так, чтобы сохранить сходимость соответствующих интегралов и зависят от параметров процесса Леви.  В работе [18] получено универсальное и удобное для численной реализации представление факторов Винера-Хопфа. Функция $\phi^+_q(\xi)$ допускает аналитическое продолжение в полуплоскость $\Im \xi>\omega_-$ и может быть представлена как:
+\begin{eqnarray*}
+	\phi^+_q(\xi)&=&\exp\left[i\xi F^+(0)-\xi^2\hat{F}^+(\xi)\right],\\ 
+	F^+(x)&=&\mathds{1}_{(-\infty,0]}(x)(2\pi)^{-1}
+	\int_{-\infty+i\omega_-}^{+\infty+i\omega_-}e^{ix\eta}\frac{\ln(q+\psi(\eta))}
+	{\eta^2}d\eta;
+	\\
+	\hat{F}^+(\xi)&=&\int_{-\infty}^{+\infty}e^{-ix\xi}F^+(x)dx.
+\end{eqnarray*}
+
+Аналогично, $\phi^-_q(\xi)$ допускает аналитическое продолжение в полуплоскость $\Im \xi<\omega_+$ и может быть представлена как:
+\begin{eqnarray*}
+	\phi^-_q(\xi)&=&\exp\left[-i\xi F^-(0)-\xi^2\hat{F}^-(\xi)\right],\\
+	F^-(x)&=&\mathds{1}_{[0,+\infty)}(x)(2\pi)^{-1}
+	\int_{-\infty+i\omega_+}^{+\infty+i\omega_+}e^{ix\eta}\frac{\ln(q+\psi(\eta))}
+	{\eta^2}d\eta;\\
+	 \hat{F}^-(\xi)&=&\int_{-\infty}^{+\infty}e^{-ix\xi}F^-(x)dx.
+\end{eqnarray*}
+
+Для вычисления интегралов используется алгоритм быстрого преобразования Фурье.
+
+
+
+\end{document}
